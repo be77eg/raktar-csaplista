@@ -129,6 +129,7 @@ def load_data():
             "Grain Cosmos",
             "Dark Vanilla Sky",
             "Let's Jump",
+            "Új teszt sör",
         ],
         "szinek": DEFAULT_COLORS,
         "csapmosas": "2026-02-27",
@@ -167,20 +168,21 @@ def format_beer_badge(beer_name):
     return f"<span style='background-color: {color}; color: #ffffff; padding: 3px 8px; border-radius: 8px; font-weight: bold; font-size: 0.8rem; display: inline-block; white-space: nowrap;'>{beer_name}</span>"
 
 
-# PONT 1: Ajánlott csap meghatározása
-def get_recommended_tap_index(beer_name, csapok):
+# PONT 2: Ajánlott csap indexének meghatározása (0 = "— Válassz csapot —")
+def get_recommended_tap_option_index(beer_name, csapok):
     base_beer = beer_name.replace(" (tört)", "").strip()
 
     # 1. Keresés az aktívan csapon lévő sörök között
     for idx, c in enumerate(csapok):
         if c["jelenlegi"] == base_beer:
-            return idx
+            return idx + 1  # +1 az opciós lista eltolása miatt
 
     # 2. Keresés a várakozó sörök között
     for idx, c in enumerate(csapok):
         if base_beer in c["kovetkezo"]:
-            return idx
+            return idx + 1
 
+    # Ha sehol sincs fenn -> 0 ("— Válassz csapot —")
     return 0
 
 
@@ -418,68 +420,80 @@ with tab_kuka:
 with tab_admin:
     st.subheader("🧼 Karbantartási Műveletek")
 
-    # PONT 2: NAGYOBB, IGÉNYES KÁRTYÁS ELHELYEZÉS
+    # PONT 1: PONTOS, EGY CSALÁDBA TARTOZÓ KÁRTYÁK EGYFORMA MAGASSÁGGAL ÉS IGAZÍTÁSSAL
     m1, m2 = st.columns(2)
 
     with m1:
-        st.markdown(
-            "### 🧼 Csapmosás\n*Utolsó mosás dátumának frissítése a mai napra.*"
-        )
-        if not st.session_state["confirm_wash"]:
-            if st.button(
-                "🧼 csap mosása",
-                key="btn_wash_act",
-                type="primary",
-                use_container_width=True,
-            ):
-                st.session_state["confirm_wash"] = True
-                st.rerun()
-        else:
-            st.warning("❓ **Biztosan ma végezted el a csapmosást?**")
-            wc1, wc2 = st.columns(2)
-            with wc1:
-                if st.button("✅ Igen, mentés", key="save_wash_btn"):
-                    data["csapmosas"] = datetime.datetime.now().strftime(
-                        "%Y-%m-%d"
-                    )
-                    save_data(data)
-                    st.session_state["confirm_wash"] = False
-                    st.success("Csapmosás dátuma frissítve!")
+        with st.container(border=True):
+            st.markdown("### 🧼 Csapmosás")
+            st.write(
+                "Utolsó dátum frissítése a mai napra. *(Aktuális: "
+                + str(data.get("csapmosas", "—"))
+                + ")*"
+            )
+            st.markdown("<br>", unsafe_allow_html=True)
+
+            if not st.session_state["confirm_wash"]:
+                if st.button(
+                    "🧼 Csap mosása gomb",
+                    key="btn_wash_act",
+                    type="primary",
+                    use_container_width=True,
+                ):
+                    st.session_state["confirm_wash"] = True
                     st.rerun()
-            with wc2:
-                if st.button("❌ Mégse", key="cancel_wash_btn"):
-                    st.session_state["confirm_wash"] = False
-                    st.rerun()
+            else:
+                st.warning("❓ **Biztosan frissíted a csapmosás dátumát?**")
+                wc1, wc2 = st.columns(2)
+                with wc1:
+                    if st.button("✅ Igen, mentés", key="save_wash_btn"):
+                        data["csapmosas"] = datetime.datetime.now().strftime(
+                            "%Y-%m-%d"
+                        )
+                        save_data(data)
+                        st.session_state["confirm_wash"] = False
+                        st.success("Dátum frissítve!")
+                        st.rerun()
+                with wc2:
+                    if st.button("❌ Mégse", key="cancel_wash_btn"):
+                        st.session_state["confirm_wash"] = False
+                        st.rerun()
 
     with m2:
-        st.markdown(
-            "### 💨 CO2 Palack Csere\n*Utolsó palackcsere dátumának frissítése a mai napra.*"
-        )
-        if not st.session_state["confirm_co2"]:
-            if st.button(
-                "💨 co lecserélése",
-                key="btn_co2_act",
-                type="primary",
-                use_container_width=True,
-            ):
-                st.session_state["confirm_co2"] = True
-                st.rerun()
-        else:
-            st.warning("❓ **Biztosan ma cserélted ki a CO2 palackot?**")
-            cc1, cc2 = st.columns(2)
-            with cc1:
-                if st.button("✅ Igen, mentés", key="save_co2_btn"):
-                    data["co2_csere"] = datetime.datetime.now().strftime(
-                        "%Y-%m-%d"
-                    )
-                    save_data(data)
-                    st.session_state["confirm_co2"] = False
-                    st.success("CO2 csere dátuma frissítve!")
+        with st.container(border=True):
+            st.markdown("### 💨 CO2 Palack Csere")
+            st.write(
+                "Utolsó dátum frissítése a mai napra. *(Aktuális: "
+                + str(data.get("co2_csere", "—"))
+                + ")*"
+            )
+            st.markdown("<br>", unsafe_allow_html=True)
+
+            if not st.session_state["confirm_co2"]:
+                if st.button(
+                    "💨 CO2 lecserélése gomb",
+                    key="btn_co2_act",
+                    type="primary",
+                    use_container_width=True,
+                ):
+                    st.session_state["confirm_co2"] = True
                     st.rerun()
-            with wc2:
-                if st.button("❌ Mégse", key="cancel_co2_btn"):
-                    st.session_state["confirm_co2"] = False
-                    st.rerun()
+            else:
+                st.warning("❓ **Biztosan frissíted a CO2 csere dátumát?**")
+                cc1, cc2 = st.columns(2)
+                with cc1:
+                    if st.button("✅ Igen, mentés", key="save_co2_btn"):
+                        data["co2_csere"] = datetime.datetime.now().strftime(
+                            "%Y-%m-%d"
+                        )
+                        save_data(data)
+                        st.session_state["confirm_co2"] = False
+                        st.success("Dátum frissítve!")
+                        st.rerun()
+                with cc2:
+                    if st.button("❌ Mégse", key="cancel_co2_btn"):
+                        st.session_state["confirm_co2"] = False
+                        st.rerun()
 
     st.markdown("---")
 
@@ -511,7 +525,9 @@ with tab_admin:
         st.markdown("**Raktárban lévő hordók kezelése és csaphoz rendelése:**")
         if data.get("raktar"):
             raktar_counts = Counter(data["raktar"])
-            csap_options = [
+
+            # PONT 2: Légördülő opciók "— Válassz csapot —" elem kezdéssel
+            csap_options = ["— Válassz csapot —"] + [
                 f"#{c['id']} ({c['jelenlegi'] if c['jelenlegi'] else 'ÜRES'})"
                 for c in data["csapok"]
             ]
@@ -521,8 +537,8 @@ with tab_admin:
                     [3, 3, 2, 2], vertical_alignment="center"
                 )
 
-                # PONT 1: Automatikus csapajánlás kiszámítása
-                default_tap_index = get_recommended_tap_index(
+                # PONT 2: Ha nincs csapon, akkor index=0 ("— Válassz csapot —")
+                default_tap_index = get_recommended_tap_option_index(
                     beer_name, data["csapok"]
                 )
 
@@ -536,28 +552,35 @@ with tab_admin:
                     selected_tap_str = st.selectbox(
                         "Csap:",
                         csap_options,
-                        index=default_tap_index,  # PONT 1: Ajánlott csap automatikus kiválasztása
+                        index=default_tap_index,
                         key=f"wh_select_tap_{beer_name}",
                         label_visibility="collapsed",
                     )
 
                 with r_col3:
                     if st.button("➕ Csapra", key=f"wh_add_btn_{beer_name}"):
-                        target_c_id = int(
-                            selected_tap_str.split(" ")[0].replace("#", "")
-                        )
-                        target_c = next(
-                            c for c in data["csapok"] if c["id"] == target_c_id
-                        )
+                        if selected_tap_str == "— Válassz csapot —":
+                            st.error(
+                                "Kérlek válassz ki egy csapot a legördülő menüből!"
+                            )
+                        else:
+                            target_c_id = int(
+                                selected_tap_str.split(" ")[0].replace("#", "")
+                            )
+                            target_c = next(
+                                c
+                                for c in data["csapok"]
+                                if c["id"] == target_c_id
+                            )
 
-                        target_c["kovetkezo"].append(beer_name)
-                        data["raktar"].remove(beer_name)
+                            target_c["kovetkezo"].append(beer_name)
+                            data["raktar"].remove(beer_name)
 
-                        save_data(data)
-                        st.success(
-                            f"'{beer_name}' hozzáadva a #{target_c_id} csaphoz!"
-                        )
-                        st.rerun()
+                            save_data(data)
+                            st.success(
+                                f"'{beer_name}' hozzáadva a #{target_c_id} csaphoz!"
+                            )
+                            st.rerun()
 
                 with r_col4:
                     if st.button("🗑️ Törlés", key=f"wh_del_btn_{beer_name}"):
