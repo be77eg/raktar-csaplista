@@ -107,6 +107,12 @@ def load_data():
             "I do what I want",
             "Dark Vanilla Sky",
         ],
+        "raktar": [
+            "Fake Your Pils",
+            "Grain Cosmos",
+            "Dark Vanilla Sky",
+            "Let's Jump",
+        ],
         "csapmosas": "2026-02-27",
         "co2_csere": "2026-07-26",
         "history": [],
@@ -118,178 +124,238 @@ def save_data(data):
         json.dump(data, f, ensure_ascii=False, indent=4)
 
 
-def get_active_beers(data):
-    beers = set()
-    for c in data["csapok"]:
-        if c["jelenlegi"]:
-            beers.add(c["jelenlegi"])
-        for k in c["kovetkezo"]:
-            if k:
-                beers.add(k)
-    for kuka_item in data["kuka"]:
-        if kuka_item:
-            beers.add(kuka_item)
-    return sorted(list(beers))
-
-
 data = load_data()
+if "raktar" not in data:
+    data["raktar"] = []
+if "pending_swap" not in st.session_state:
+    st.session_state.pending_swap = None
 
-st.title("Csaplista & Hordókövető")
+st.title("🍺 Csaplista & Hordókövető")
 
+# Karbantartás infó
 col_k1, col_k2 = st.columns(2)
 with col_k1:
     st.info(f"🧼 **Utolsó csapmosás:** {data.get('csapmosas', '—')}")
 with col_k2:
     st.warning(f"💨 **Utolsó CO2 csere:** {data.get('co2_csere', '—')}")
 
-# Visszavonás gomb
+# Visszavonás lehetőség az utolsó műveletre
 if data.get("history") and len(data["history"]) > 0:
-    if st.button("↩️ Utolsó hordócsere visszavonása"):
+    if st.button("↩️ Legutóbbi hordócsere visszavonása"):
         prev_state = data["history"].pop()
         data["csapok"] = prev_state["csapok"]
         data["kuka"] = prev_state["kuka"]
+        if "raktar" in prev_state:
+            data["raktar"] = prev_state["raktar"]
         save_data(data)
-        st.success("Sikeres visszavonás!")
+        st.success("Sikeresen visszavontad az utolsó cserét!")
         st.rerun()
 
 tab_csapok, tab_kuka, tab_admin = st.tabs(
-    ["🚰 Aktuális Csaplista", "🗑️ Üres Hordók (Kuka)", "⚙️ Menedzsment"]
+    ["🚰 Csapok (1-12)", "🗑️ Üres Hordók (Kuka)", "⚙️ Menedzsment & Raktár"]
 )
 
-# 1. CSAPLISTA TÁBLÁZAT + GYORS CSERE
+# 1. FIX CSAPLISTA
 with tab_csapok:
-    st.subheader("Aktív csapok állapota")
+    st.subheader("Aktív Csapok Állapota")
 
-    table_data = []
-    for c in data["csapok"]:
-        table_data.append(
-            {
-                "Csap": f"#{c['id']}",
-                "Jelenlegi sör": (
-                    c["jelenlegi"] if c["jelenlegi"] else "— ÜRES —"
-                ),
-                "Utolsó csere": c["datum"],
-                "Következő sörök": (
-                    " ➜ ".join(c["kovetkezo"])
-                    if c["kovetkezo"]
-                    else "Nincs következő"
-                ),
-            }
-        )
+    # Fejléc
+    h_col1, h_col2, h_col3, h_col4, h_col5 = st.columns([1, 3, 2, 4, 2])
+    with h_col1:
+        st.markdown("**Csap**")
+    with h_col2:
+        st.markdown("**Jelenlegi sör**")
+    with h_col3:
+        st.markdown("**Csere dátuma**")
+    with h_col4:
+        st.markdown("**Következő hordók**")
+    with h_col5:
+        st.markdown("**Művelet**")
 
-    df_display = pd.DataFrame(table_data)
-    st.dataframe(df_display, use_container_width=True, hide_index=True)
-
-    st.markdown("---")
-    st.subheader("⚡ Gyors Hordócsere")
-
-    csap_options = [
-        f"#{c['id']} — {c['jelenlegi'] if c['jelenlegi'] else 'ÜRES'}"
-        for c in data["csapok"]
-    ]
-    valasztott = st.selectbox(
-        "Válaszd ki a cserélendő csapot:", csap_options, key="quick_swap_select"
+    st.markdown(
+        "<hr style='margin: 4px 0 12px 0; border-color: #444;'>",
+        unsafe_allow_html=True,
     )
 
-    if st.button("🔄 Hordócsere végrehajtása", type="primary"):
-        csap_id = int(valasztott.split(" ")[0].replace("#", ""))
-        c = next(item for item in data["csapok"] if item["id"] == csap_id)
-
-        if "history" not in data:
-            data["history"] = []
-
-        data["history"].append(
-            {
-                "csapok": json.loads(json.dumps(data["csapok"])),
-                "kuka": list(data["kuka"]),
-            }
+    # Csapok kirajzolása sorról sorra
+    for idx, c in enumerate(data["csapok"]):
+        bg_color = (
+            "rgba(255, 255, 255, 0.04)"
+            if idx % 2 == 0
+            else "rgba(255, 255, 255, 0.00)"
         )
-        if len(data["history"]) > 5:
-            data["history"].pop(0)
 
-        if c["jelenlegi"]:
-            data["kuka"].append(c["jelenlegi"])
+        with st.container():
+            st.markdown(
+                f"<div style='background-color: {bg_color}; padding: 6px 8px; border-radius: 4px;'>",
+                unsafe_allow_html=True,
+            )
+            col1, col2, col3, col4, col5 = st.columns([1, 3, 2, 4, 2])
 
-        if len(c["kovetkezo"]) > 0:
-            c["jelenlegi"] = c["kovetkezo"].pop(0)
-        else:
-            c["jelenlegi"] = ""
+            with col1:
+                st.markdown(f"### **#{c['id']}**")
 
-        c["datum"] = datetime.datetime.now().strftime("%Y-%m-%d")
+            with col2:
+                jelenlegi_nev = (
+                    f"**{c['jelenlegi']}**" if c["jelenlegi"] else "❌ *ÜRES*"
+                )
+                st.markdown(jelenlegi_nev)
 
-        save_data(data)
-        st.success(f"Csap #{csap_id} sikeresen frissítve!")
-        st.rerun()
+            with col3:
+                st.markdown(f"📅 {c['datum']}")
+
+            with col4:
+                if c["kovetkezo"]:
+                    st.markdown(" ➜ ".join(c["kovetkezo"]))
+                else:
+                    st.caption("Nincs következő hordó")
+
+            with col5:
+                # Ha épp erre a csapra nyomtak cserét, kérjen megerősítést
+                if st.session_state.pending_swap == c["id"]:
+                    st.warning("Biztos?")
+                    b_ok, b_no = st.columns(2)
+                    with b_ok:
+                        if st.button("✅", key=f"confirm_{c['id']}"):
+                            # Mentés történetbe
+                            if "history" not in data:
+                                data["history"] = []
+                            data["history"].append(
+                                {
+                                    "csapok": json.loads(
+                                        json.dumps(data["csapok"])
+                                    ),
+                                    "kuka": list(data["kuka"]),
+                                    "raktar": list(data.get("raktar", [])),
+                                }
+                            )
+
+                            # Csere logika
+                            if c["jelenlegi"]:
+                                data["kuka"].append(c["jelenlegi"])
+
+                            if len(c["kovetkezo"]) > 0:
+                                c["jelenlegi"] = c["kovetkezo"].pop(0)
+                            else:
+                                c["jelenlegi"] = ""
+
+                            c["datum"] = datetime.datetime.now().strftime(
+                                "%Y-%m-%d"
+                            )
+                            save_data(data)
+                            st.session_state.pending_swap = None
+                            st.rerun()
+
+                    with b_no:
+                        if st.button("❌", key=f"cancel_{c['id']}"):
+                            st.session_state.pending_swap = None
+                            st.rerun()
+                else:
+                    if st.button("🔄 Csere", key=f"btn_swap_{c['id']}"):
+                        st.session_state.pending_swap = c["id"]
+                        st.rerun()
+
+            st.markdown("</div>", unsafe_allow_html=True)
+            st.markdown(
+                "<hr style='margin: 4px 0; border-color: #222;'>",
+                unsafe_allow_html=True,
+            )
 
 # 2. KUKA / ÜRES HORDÓK
 with tab_kuka:
-    st.subheader("Futárra váró üres hordók")
-
-    osszes_kuka = len(data["kuka"])
-    st.metric(label="Összes üres hordó száma", value=f"{osszes_kuka} db")
+    st.subheader("Futárra Váró Üres Hordók")
+    st.metric(label="Összes üres hordó", value=f"{len(data['kuka'])} db")
 
     if data["kuka"]:
-        st.markdown("### Bontás sörök szerint:")
         kuka_df = (
             pd.DataFrame(data["kuka"], columns=["Sör neve"])
             .value_counts()
             .reset_index(name="Darabszám (db)")
         )
-
         st.dataframe(kuka_df, use_container_width=True, hide_index=True)
 
-        st.markdown("---")
-        if st.button(
-            "🚚 Futár elvitte az üres hordókat (Kuka ürítése)", type="primary"
-        ):
+        if st.button("🚚 Kuka Ürítése (Elvitte a futár)", type="primary"):
             data["kuka"] = []
             save_data(data)
             st.success("Kuka kiürítve!")
             st.rerun()
     else:
-        st.info("Jelenleg nincs üres hordó a kukában.")
+        st.info("Nincs üres hordó a kukában.")
 
-# 3. MENEDZSMENT / BEÁLLÍTÁSOK
+# 3. MENEDZSMENT & RAKTÁR
 with tab_admin:
-    st.subheader("Új várakozó hordó hozzáadása egy csaphoz")
+    st.subheader("📦 Raktár (Szabad Hordók)")
+    st.caption("Itt találhatóak azok a hordók, amelyek még nincsenek csapra/várakozási sorba állítva.")
 
-    c_select, b_select = st.columns(2)
+    col_r1, col_r2 = st.columns([2, 1])
 
-    with c_select:
-        target_csap_admin = st.selectbox(
-            "Melyik csaphoz adjuk hozzá?",
-            [f"#{c['id']}" for c in data["csapok"]],
-            key="admin_csap",
-        )
-        admin_csap_id = int(target_csap_admin.replace("#", ""))
-
-    with b_select:
-        active_beers = get_active_beers(data)
-        options = ["➕ Új sör hozzáadása"] + active_beers
-
-        valasztott_sor = st.selectbox("Sör kiválasztása listából", options)
-
-        if valasztott_sor == "➕ Új sör hozzáadása":
-            uj_sor_nev = st.text_input("Új sör neve:")
-        else:
-            uj_sor_nev = valasztott_sor
-
-    if st.button("Hordó hozzáadása a várakozási sorhoz", type="primary"):
-        if uj_sor_nev.strip():
-            target_c = next(
-                c for c in data["csapok"] if c["id"] == admin_csap_id
+    with col_r1:
+        if data.get("raktar"):
+            raktar_df = (
+                pd.DataFrame(data["raktar"], columns=["Sör neve"])
+                .value_counts()
+                .reset_index(name="Készlet (db)")
             )
-            target_c["kovetkezo"].append(uj_sor_nev.strip())
-            save_data(data)
-            st.success(
-                f"Sikeresen hozzáadva a #{admin_csap_id} csaphoz: {uj_sor_nev.strip()}"
-            )
-            st.rerun()
+            st.dataframe(raktar_df, use_container_width=True, hide_index=True)
         else:
-            st.error("Kérlek add meg a sör nevét!")
+            st.info("A raktár jelenleg üres.")
+
+    with col_r2:
+        st.markdown("**Új hordó érkezett a raktárba:**")
+        uj_raktar_sor = st.text_input("Sör neve:", key="input_raktar")
+        if st.button("➕ Raktárba tesz"):
+            if uj_raktar_sor.strip():
+                data["raktar"].append(uj_raktar_sor.strip())
+                save_data(data)
+                st.success("Hordó hozzáadva a raktárhoz!")
+                st.rerun()
 
     st.markdown("---")
-    st.subheader("Karbantartási dátumok frissítése")
+    st.subheader("➕ Várakozó Hordó Beállítása Csapra")
+
+    col_m1, col_m2 = st.columns(2)
+    with col_m1:
+        target_csap = st.selectbox(
+            "Melyik csaphoz adjuk hozzá?",
+            [f"#{c['id']} — {c['jelenlegi']}" for c in data["csapok"]],
+        )
+        c_id = int(target_csap.split(" ")[0].replace("#", ""))
+
+    with col_m2:
+        # Választhat raktárból vagy írhat újat
+        raktar_opciok = list(set(data.get("raktar", [])))
+        valasztas = st.selectbox(
+            "Válassz hordót a Raktárból vagy adj meg újat:",
+            ["-- Raktárból választok --"]
+            + raktar_opciok
+            + ["➕ Új sör kézi megadása"],
+        )
+
+        if valasztas == "➕ Új sör kézi megadása":
+            hozzaadando_sor = st.text_input("Új sör neve:")
+            levon_raktarbol = False
+        elif valasztas != "-- Raktárból választok --":
+            hozzaadando_sor = valasztas
+            levon_raktarbol = True
+        else:
+            hozzaadando_sor = ""
+            levon_raktarbol = False
+
+    if st.button("Hordó hozzáadása a csap sorához", type="primary"):
+        if hozzaadando_sor.strip():
+            target_c = next(c for c in data["csapok"] if c["id"] == c_id)
+            target_c["kovetkezo"].append(hozzaadando_sor.strip())
+
+            # Ha raktárból választottuk, kivesszük belőle az egyiket
+            if levon_raktarbol and hozzaadando_sor in data["raktar"]:
+                data["raktar"].remove(hozzaadando_sor)
+
+            save_data(data)
+            st.success(f"Hozzáadva a #{c_id} csaphoz!")
+            st.rerun()
+
+    st.markdown("---")
+    st.subheader("🧼 Karbantartás Regisztrálása")
     col_a1, col_a2 = st.columns(2)
     with col_a1:
         if st.button("🧼 Csapmosás elvégezve ma"):
