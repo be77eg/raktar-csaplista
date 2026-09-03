@@ -134,6 +134,7 @@ def load_data():
         "csapmosas": "2026-02-27",
         "co2_csere": "2026-07-26",
         "history": [],
+        "kuka_history": [],
     }
 
 
@@ -147,6 +148,8 @@ if "raktar" not in data:
     data["raktar"] = []
 if "szinek" not in data:
     data["szinek"] = DEFAULT_COLORS
+if "kuka_history" not in data:
+    data["kuka_history"] = []
 
 # Megerősítési állapotok inicializálása
 if "confirm_wash" not in st.session_state:
@@ -158,7 +161,11 @@ if "confirm_co2" not in st.session_state:
 def format_beer_badge(beer_name):
     if not beer_name or beer_name == "— ÜRES —":
         return "<span style='color: #888; font-size: 0.8rem;'>— ÜRES —</span>"
-    color = data["szinek"].get(beer_name, "#3498DB")
+
+    # Tört hordó színének meghatározása az alapsör alapján
+    base_name = beer_name.replace(" (tört)", "").strip()
+    color = data["szinek"].get(base_name, "#3498DB")
+
     return f"<span style='background-color: {color}; color: #ffffff; padding: 3px 8px; border-radius: 8px; font-weight: bold; font-size: 0.8rem; display: inline-block; white-space: nowrap;'>{beer_name}</span>"
 
 
@@ -170,14 +177,12 @@ with col_k1:
 with col_k2:
     st.warning(f"💨 **Utolsó CO2 csere:** {data.get('co2_csere', '—')}")
 
-# PONT 7: Tisztított fülelnevezések
 tab_csapok, tab_kuka, tab_admin = st.tabs(
     ["🚰 Csapok", "🗑️ Üres Hordók", "⚙️ Menedzsment & Raktár"]
 )
 
 # 1. TAB: CSAPLISTA
 with tab_csapok:
-    # PONT 8: Visszavonás gomb áthelyezve ide
     if data.get("history") and len(data["history"]) > 0:
         if st.button("↩️ Legutóbbi hordócsere visszavonása", key="undo_btn_tap_tab"):
             prev_state = data["history"].pop()
@@ -191,14 +196,12 @@ with tab_csapok:
 
     st.subheader("Aktív Csapok Állapota")
 
-    # Reszponzív oszlopméretezés
     st.markdown(
         """
         <style>
             [data-testid="column"] { min-width: 0 !important; }
             .stButton button { width: 100%; min-width: 70px; }
             
-            /* PONT 4: Egyedi gomszínek */
             div.stButton > button.btn-wash {
                 background-color: #FF69B4 !important;
                 color: white !important;
@@ -216,7 +219,6 @@ with tab_csapok:
         unsafe_allow_html=True,
     )
 
-    # Fejléc
     h1, h2, h3, h4, h5 = st.columns([1, 3, 4, 2, 2])
     h1.markdown("**Csap**")
     h2.markdown("**Jelenlegi sör**")
@@ -263,7 +265,6 @@ with tab_csapok:
             )
 
         with c5:
-            # PONT 1: Üres csap esetén letiltott csere gomb
             is_empty_tap = not (c["jelenlegi"] or c["kovetkezo"])
             if st.button(
                 "🔄 Csere", key=f"btn_swap_{c['id']}", disabled=is_empty_tap
@@ -300,15 +301,71 @@ with tab_csapok:
 # 2. TAB: ÜRES HORDÓK (KUKA)
 with tab_kuka:
     st.subheader("Futárra Váró Üres Hordók")
+
+    # PONT 1 & 4: Elszállítás visszavonása gomb és Véglegesítés
+    col_k_undo, col_k_save = st.columns(2)
+
+    with col_k_undo:
+        if data.get("kuka_history") and len(data["kuka_history"]) > 0:
+            if st.button(
+                "↩️ Legutóbbi elszállítás visszavonása",
+                key="undo_kuka_btn",
+            ):
+                data["kuka"] = data["kuka_history"].pop()
+                save_data(data)
+                st.success("Elszállítás visszavonva, a hordók visszakerültek!")
+                st.rerun()
+
+    with col_k_save:
+        if data.get("kuka_history") and len(data["kuka_history"]) > 0:
+            if st.button(
+                "🔒 Állapot véglegesítése (Elszállítások lezárása)",
+                type="primary",
+                key="lock_kuka_btn",
+            ):
+                data["kuka_history"] = []
+                save_data(data)
+                st.success(
+                    "Elszállítások rögzítve! A visszavonási lehetőség lezárva."
+                )
+                st.rerun()
+
     st.metric(label="Összes üres hordó", value=f"{len(data['kuka'])} db")
 
-    # PONT 5: Kiválasztásos elszállítás vagy teljes ürítés
     if data["kuka"]:
         kuka_counts = Counter(data["kuka"])
         for beer_name, count in kuka_counts.items():
-            k_col1, k_col2, k_col3 = st.columns(
-                [4, 2, 2], vertical_alignment="center"
+            # PONT 2: Visszaküldés raktárba gomb a bal oldalon
+            k_col0, k_col1, k_col2, k_col3 = st.columns(
+                [2, 3, 2, 2], vertical_alignment="center"
             )
+
+            with k_col0:
+                if st.button(
+                    "↩️ Raktárba (tört)", key=f"return_wh_btn_{beer_name}"
+                ):
+                    data["kuka"].remove(beer_name)
+                    # PONT 2: Tört jelölés hozzáadása
+                    tort_name = (
+                        beer_name
+                        if "(tört)" in beer_name
+                        else f"{beer_name} (tört)"
+                    )
+                    data["raktar"].append(tort_name)
+
+                    # Szín beállítása ha új tétel lenne
+                    base_name = beer_name.replace(" (tört)", "").strip()
+                    if (
+                        base_name in data["szinek"]
+                        and tort_name not in data["szinek"]
+                    ):
+                        data["szinek"][tort_name] = data["szinek"][base_name]
+
+                    save_data(data)
+                    st.success(
+                        f"'{tort_name}' visszaküldve a raktárba tört hordóként!"
+                    )
+                    st.rerun()
 
             with k_col1:
                 st.markdown(
@@ -330,6 +387,8 @@ with tab_kuka:
                 if st.button(
                     "🚚 Elszállítás", key=f"take_btn_{beer_name}"
                 ):
+                    # Előzmény elmentése a visszavonhatósághoz
+                    data["kuka_history"].append(list(data["kuka"]))
                     for _ in range(take_count):
                         if beer_name in data["kuka"]:
                             data["kuka"].remove(beer_name)
@@ -350,6 +409,7 @@ with tab_kuka:
             type="primary",
             key="empty_trash_btn",
         ):
+            data["kuka_history"].append(list(data["kuka"]))
             data["kuka"] = []
             save_data(data)
             st.success("Minden üres hordó elszállítva!")
@@ -361,21 +421,14 @@ with tab_kuka:
 with tab_admin:
     st.subheader("🧼 Karbantartási Műveletek")
 
-    # PONT 4: Színezett gombok pontos feliratokkal és megerősítéssel
+    # PONT 3: CSAPMOSÁS ÉS CO2 CSERE EGY SORBAN
     m1, m2 = st.columns(2)
 
     with m1:
         if not st.session_state["confirm_wash"]:
-            # Rózsaszín gomb csap mosása felirattal
-            st.markdown(
-                '<div class="btn-wash-container">', unsafe_allow_html=True
-            )
-            if st.button(
-                "🧼 csap mosása", key="btn_wash_act", help="Rózsaszín gomb"
-            ):
+            if st.button("🧼 csap mosása", key="btn_wash_act"):
                 st.session_state["confirm_wash"] = True
                 st.rerun()
-            st.markdown("</div>", unsafe_allow_html=True)
         else:
             st.warning("❓ **Biztosan ma végezted el a csapmosást?**")
             wc1, wc2 = st.columns(2)
@@ -395,10 +448,7 @@ with tab_admin:
 
     with m2:
         if not st.session_state["confirm_co2"]:
-            # Kék gomb co lecserélése felirattal
-            if st.button(
-                "💨 co lecserélése", key="btn_co2_act", help="Kék gomb"
-            ):
+            if st.button("💨 co lecserélése", key="btn_co2_act"):
                 st.session_state["confirm_co2"] = True
                 st.rerun()
         else:
@@ -490,7 +540,6 @@ with tab_admin:
                         )
                         st.rerun()
 
-                # PONT 3: Törlés gomb a raktárból
                 with r_col4:
                     if st.button("🗑️ Törlés", key=f"wh_del_btn_{beer_name}"):
                         data["raktar"].remove(beer_name)
@@ -505,18 +554,27 @@ with tab_admin:
         else:
             st.info("A raktár jelenleg üres.")
 
-    # PONT 2: Meglévő sörök választása vagy új megadása
+    # PONT 3: ÚJ / MEGLÉVŐ SÖR HOZZÁADÁS SZÉP GOMBOKKAL
     with col_r2:
         st.markdown("**Új hordó hozzáadása a raktárhoz:**")
 
-        add_type = st.radio(
-            "Hogyan adod hozzá?",
+        add_type = st.segmented_control(
+            "Hozzáadás típusa:",
             ["Meglévő sörök közül", "Vadonatúj sör felvétele"],
-            key="add_type_radio",
+            default="Meglévő sörök közül",
+            key="add_type_segmented",
         )
 
         if add_type == "Meglévő sörök közül":
-            meglevo_sorok = sorted(list(data["szinek"].keys()))
+            # Tört szavak nélküli egyedi nevek kigyűjtése
+            meglevo_sorok = sorted(
+                list(
+                    set(
+                        k.replace(" (tört)", "")
+                        for k in data["szinek"].keys()
+                    )
+                )
+            )
             if meglevo_sorok:
                 valasztott_meglevo = st.selectbox(
                     "Válassz sört:", meglevo_sorok, key="select_existing_beer"
@@ -525,7 +583,11 @@ with tab_admin:
                     "Darabszám:", min_value=1, value=1, key="num_existing_beer"
                 )
 
-                if st.button("➕ Hozzáadás a Raktárhoz", key="add_exist_btn"):
+                if st.button(
+                    "➕ Hozzáadás a Raktárhoz",
+                    type="primary",
+                    key="add_exist_btn",
+                ):
                     for _ in range(db_szam):
                         data["raktar"].append(valasztott_meglevo)
                     save_data(data)
@@ -544,7 +606,11 @@ with tab_admin:
                 "Darabszám:", min_value=1, value=1, key="num_new_beer"
             )
 
-            if st.button("➕ Új sör mentése és hozzáadása"):
+            if st.button(
+                "➕ Új sör mentése és hozzáadása",
+                type="primary",
+                key="add_new_beer_btn",
+            ):
                 if uj_sor_nev.strip():
                     s_nev = uj_sor_nev.strip()
                     for _ in range(db_szam_uj):
