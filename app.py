@@ -1,3 +1,4 @@
+from collections import Counter
 import datetime
 import json
 import os
@@ -179,22 +180,37 @@ tab_csapok, tab_kuka, tab_admin = st.tabs(
     ["🚰 Csapok (1-12)", "🗑️ Üres Hordók (Kuka)", "⚙️ Menedzsment & Raktár"]
 )
 
-# 1. TAB: CSAPLISTA SORKÉNT + GOMBOKKAL
+# 1. TAB: CSAPLISTA (Függőlegesen és vízszintesen középre rendezve)
 with tab_csapok:
     st.subheader("Aktív Csapok Állapota")
 
-    # Fejléc elrendezés
+    # Fejléc elrendezés (középre zárt szövegekkel)
     h_col1, h_col2, h_col3, h_col4, h_col5 = st.columns([1, 3, 4, 2, 2])
     with h_col1:
-        st.markdown("**Csap**")
+        st.markdown(
+            "<div style='text-align: center;'><b>Csap</b></div>",
+            unsafe_allow_html=True,
+        )
     with h_col2:
-        st.markdown("**Jelenlegi sör**")
+        st.markdown(
+            "<div style='text-align: center;'><b>Jelenlegi sör</b></div>",
+            unsafe_allow_html=True,
+        )
     with h_col3:
-        st.markdown("**Következő hordók**")
+        st.markdown(
+            "<div style='text-align: center;'><b>Következő hordók</b></div>",
+            unsafe_allow_html=True,
+        )
     with h_col4:
-        st.markdown("**Utolsó csere**")
+        st.markdown(
+            "<div style='text-align: center;'><b>Utolsó csere</b></div>",
+            unsafe_allow_html=True,
+        )
     with h_col5:
-        st.markdown("**Művelet**")
+        st.markdown(
+            "<div style='text-align: center;'><b>Művelet</b></div>",
+            unsafe_allow_html=True,
+        )
 
     st.markdown(
         "<hr style='margin: 4px 0 12px 0; border-color: #444;'>",
@@ -202,84 +218,105 @@ with tab_csapok:
     )
 
     for idx, c in enumerate(data["csapok"]):
-        bg_color = (
-            "rgba(255, 255, 255, 0.05)"
-            if idx % 2 == 0
-            else "rgba(255, 255, 255, 0.00)"
-        )
-
         with st.container():
-            col1, col2, col3, col4, col5 = st.columns([1, 3, 4, 2, 2])
+            # align-items: center gondoskodik a függőleges középre igazításról
+            col1, col2, col3, col4, col5 = st.columns(
+                [1, 3, 4, 2, 2], vertical_alignment="center"
+            )
 
             with col1:
-                st.markdown(f"### **#{c['id']}**")
+                st.markdown(
+                    f"<div style='text-align: center; font-size: 1.2em; font-weight: bold;'>#{c['id']}</div>",
+                    unsafe_allow_html=True,
+                )
 
             with col2:
                 st.markdown(
-                    format_beer_badge(c["jelenlegi"]), unsafe_allow_html=True
+                    f"<div style='text-align: center;'>{format_beer_badge(c['jelenlegi'])}</div>",
+                    unsafe_allow_html=True,
                 )
 
             with col3:
                 if c["kovetkezo"]:
                     kov_badges = [format_beer_badge(k) for k in c["kovetkezo"]]
                     st.markdown(
-                        " ➜ ".join(kov_badges), unsafe_allow_html=True
+                        f"<div style='text-align: center;'>{' ➜ '.join(kov_badges)}</div>",
+                        unsafe_allow_html=True,
                     )
                 else:
-                    st.caption("Nincs következő")
+                    st.markdown(
+                        "<div style='text-align: center; color: #777;'>Nincs következő</div>",
+                        unsafe_allow_html=True,
+                    )
 
             with col4:
                 st.markdown(
-                    f"<span style='color: #aaa;'>{c['datum']}</span>",
+                    f"<div style='text-align: center; color: #aaa;'>{c['datum']}</div>",
                     unsafe_allow_html=True,
                 )
 
             with col5:
-                # Azonnali csere gomb rákérdezés nélkül
-                if st.button("🔄 Csere", key=f"row_swap_btn_{c['id']}"):
-                    if "history" not in data:
-                        data["history"] = []
-                    data["history"].append(
-                        {
-                            "csapok": json.loads(json.dumps(data["csapok"])),
-                            "kuka": list(data["kuka"]),
-                            "raktar": list(data.get("raktar", [])),
-                        }
-                    )
-                    if len(data["history"]) > 5:
-                        data["history"].pop(0)
+                # Középre igazított csere gomb
+                _, btn_center, _ = st.columns([1, 2, 1])
+                with btn_center:
+                    if st.button("🔄 Csere", key=f"row_swap_btn_{c['id']}"):
+                        if "history" not in data:
+                            data["history"] = []
+                        data["history"].append(
+                            {
+                                "csapok": json.loads(
+                                    json.dumps(data["csapok"])
+                                ),
+                                "kuka": list(data["kuka"]),
+                                "raktar": list(data.get("raktar", [])),
+                            }
+                        )
+                        if len(data["history"]) > 5:
+                            data["history"].pop(0)
 
-                    if c["jelenlegi"]:
-                        data["kuka"].append(c["jelenlegi"])
+                        if c["jelenlegi"]:
+                            data["kuka"].append(c["jelenlegi"])
 
-                    if len(c["kovetkezo"]) > 0:
-                        c["jelenlegi"] = c["kovetkezo"].pop(0)
-                    else:
-                        c["jelenlegi"] = ""
+                        if len(c["kovetkezo"]) > 0:
+                            c["jelenlegi"] = c["kovetkezo"].pop(0)
+                        else:
+                            c["jelenlegi"] = ""
 
-                    c["datum"] = datetime.datetime.now().strftime("%Y-%m-%d")
-                    save_data(data)
-                    st.rerun()
+                        c["datum"] = datetime.datetime.now().strftime(
+                            "%Y-%m-%d"
+                        )
+                        save_data(data)
+                        st.rerun()
 
             st.markdown(
                 "<hr style='margin: 6px 0; border-color: #222;'>",
                 unsafe_allow_html=True,
             )
 
-# 2. TAB: KUKA
+# 2. TAB: KUKA (Színes címkékkel)
 with tab_kuka:
     st.subheader("Futárra Váró Üres Hordók")
     st.metric(label="Összes üres hordó", value=f"{len(data['kuka'])} db")
 
     if data["kuka"]:
-        kuka_df = (
-            pd.DataFrame(data["kuka"], columns=["Sör neve"])
-            .value_counts()
-            .reset_index(name="Darabszám (db)")
-        )
-        st.dataframe(kuka_df, use_container_width=True, hide_index=True)
+        kuka_counts = Counter(data["kuka"])
+        for beer_name, count in kuka_counts.items():
+            k_col1, k_col2 = st.columns([3, 1], vertical_alignment="center")
+            with k_col1:
+                st.markdown(
+                    f"{format_beer_badge(beer_name)} &nbsp;&nbsp; **{count} db**",
+                    unsafe_allow_html=True,
+                )
+            st.markdown(
+                "<hr style='margin: 4px 0; border-color: #333;'>",
+                unsafe_allow_html=True,
+            )
 
-        if st.button("🚚 Kuka Ürítése (Elvitte a futár)", type="primary"):
+        if st.button(
+            "🚚 Kuka Ürítése (Elvitte a futár)",
+            type="primary",
+            key="empty_trash_btn",
+        ):
             data["kuka"] = []
             save_data(data)
             st.success("Kuka kiürítve!")
@@ -289,32 +326,72 @@ with tab_kuka:
 
 # 3. TAB: MENEDZSMENT & RAKTÁR
 with tab_admin:
-    st.subheader("📦 Raktárkészlet és Sörök Színei")
+    st.subheader("📦 Raktárkészlet és Közvetlen Csapra Helyezés")
 
-    col_r1, col_r2 = st.columns([2, 1])
+    col_r1, col_r2 = st.columns([3, 2])
 
     with col_r1:
         if data.get("raktar"):
-            raktar_df = (
-                pd.DataFrame(data["raktar"], columns=["Sör neve"])
-                .value_counts()
-                .reset_index(name="Készlet (db)")
-            )
-            raktar_df["Színkód"] = raktar_df["Sör neve"].apply(
-                lambda x: data["szinek"].get(x, "#3498DB")
-            )
-            st.dataframe(raktar_df, use_container_width=True, hide_index=True)
+            raktar_counts = Counter(data["raktar"])
+            csap_options = [
+                f"#{c['id']} ({c['jelenlegi'] if c['jelenlegi'] else 'ÜRES'})"
+                for c in data["csapok"]
+            ]
+
+            st.markdown("**Válassz hordót és küldd közvetlenül a csapra:**")
+
+            for beer_name, count in raktar_counts.items():
+                r_col1, r_col2, r_col3 = st.columns(
+                    [3, 3, 2], vertical_alignment="center"
+                )
+
+                with r_col1:
+                    st.markdown(
+                        f"{format_beer_badge(beer_name)} &nbsp; **({count} db)**",
+                        unsafe_allow_html=True,
+                    )
+
+                with r_col2:
+                    selected_tap_str = st.selectbox(
+                        "Csap:",
+                        csap_options,
+                        key=f"wh_select_tap_{beer_name}",
+                        label_visibility="collapsed",
+                    )
+
+                with r_col3:
+                    if st.button("➕ Csapra", key=f"wh_add_btn_{beer_name}"):
+                        target_c_id = int(
+                            selected_tap_str.split(" ")[0].replace("#", "")
+                        )
+                        target_c = next(
+                            c for c in data["csapok"] if c["id"] == target_c_id
+                        )
+
+                        target_c["kovetkezo"].append(beer_name)
+                        data["raktar"].remove(beer_name)
+
+                        save_data(data)
+                        st.success(
+                            f"'{beer_name}' hozzáadva a #{target_c_id} csaphoz!"
+                        )
+                        st.rerun()
+
+                st.markdown(
+                    "<hr style='margin: 4px 0; border-color: #333;'>",
+                    unsafe_allow_html=True,
+                )
         else:
             st.info("A raktár jelenleg üres.")
 
     with col_r2:
-        st.markdown("**Új sör / hordó érkezése:**")
+        st.markdown("**Új sör regisztrálása a raktárba:**")
         uj_sor_nev = st.text_input("Sör neve:", key="input_raktar_name")
         valasztott_szin = st.color_picker(
             "Sör színe a táblázatban:", "#3498DB", key="color_picker"
         )
 
-        if st.button("➕ Hozzáadás Raktárhoz"):
+        if st.button("➕ Új sör hozzáadása"):
             if uj_sor_nev.strip():
                 s_nev = uj_sor_nev.strip()
                 data["raktar"].append(s_nev)
@@ -324,72 +401,47 @@ with tab_admin:
                 st.rerun()
 
     st.markdown("---")
-    st.subheader("➡️ Várakozó hordó hozzáadása egy csaphoz")
+    st.subheader("↩️ Hordók VISSZAHÍVÁSA a csaplistáról a Raktárba")
+    st.caption("A várakozó sörök jól elkülönítve, közvetlenül visszahívhatók:")
 
-    col_m1, col_m2 = st.columns(2)
-    with col_m1:
-        target_csap = st.selectbox(
-            "Melyik csaphoz adjuk hozzá?",
-            [f"#{c['id']} — {c['jelenlegi']}" for c in data["csapok"]],
-            key="add_to_tap_select",
-        )
-        c_id = int(target_csap.split(" ")[0].replace("#", ""))
-
-    with col_m2:
-        raktar_opciok = sorted(list(set(data.get("raktar", []))))
-        valasztott_raktar_sor = st.selectbox(
-            "Válassz hordót a Raktárból:",
-            ["-- Válassz --"] + raktar_opciok,
-            key="select_from_wh",
-        )
-
-    if st.button("Hordó áthelyezése a csap várakozó sorába", type="primary"):
-        if valasztott_raktar_sor != "-- Válassz --":
-            target_c = next(c for c in data["csapok"] if c["id"] == c_id)
-            target_c["kovetkezo"].append(valasztott_raktar_sor)
-
-            if valasztott_raktar_sor in data["raktar"]:
-                data["raktar"].remove(valasztott_raktar_sor)
-
-            save_data(data)
-            st.success(f"Hordó hozzáadva a #{c_id} csaphoz!")
-            st.rerun()
-
-    st.markdown("---")
-    st.subheader("↩️ Hordó VISSZAHÍVÁSA a csaplistáról a Raktárba")
-    st.caption("A választólistában láthatóak a várakozó hordók nevei is.")
-
-    # Pontosan mutatja, hogy melyik csapon mi várakozik
-    csap_vissza_opciok = [
-        f"#{c['id']} — Várakozik: {', '.join(c['kovetkezo'])}"
-        for c in data["csapok"]
-        if len(c["kovetkezo"]) > 0
-    ]
-
-    if csap_vissza_opciok:
-        col_v1, col_v2 = st.columns([3, 1])
-        with col_v1:
-            vissza_csap_str = st.selectbox(
-                "Melyik csapról hívjuk vissza a hordót?",
-                csap_vissza_opciok,
-                key="recall_tap_select",
-            )
-
-        v_id = int(vissza_csap_str.split(" ")[0].replace("#", ""))
-        target_v_c = next(c for c in data["csapok"] if c["id"] == v_id)
-        utolso_hordo = target_v_c["kovetkezo"][-1]
-
-        with col_v2:
-            st.write(f"Utolsó hordó: **{utolso_hordo}**")
-            if st.button("↩️ Visszahívás Raktárba"):
-                recalled = target_v_c["kovetkezo"].pop()
-                data["raktar"].append(recalled)
-                save_data(data)
-                st.success(
-                    f"'{recalled}' visszakerült a raktárba a #{v_id} csapról!"
+    has_waiting = False
+    for c in data["csapok"]:
+        if c["kovetkezo"]:
+            has_waiting = True
+            with st.container():
+                v_col1, v_col2, v_col3 = st.columns(
+                    [2, 4, 2], vertical_alignment="center"
                 )
-                st.rerun()
-    else:
+
+                with v_col1:
+                    st.markdown(f"**#{c['id']} Csap várakozó sora:**")
+
+                with v_col2:
+                    kov_badges = [format_beer_badge(k) for k in c["kovetkezo"]]
+                    st.markdown(
+                        " ➜ ".join(kov_badges), unsafe_allow_html=True
+                    )
+
+                with v_col3:
+                    utolso_hordo = c["kovetkezo"][-1]
+                    if st.button(
+                        f"↩️ Utolsó ({utolso_hordo}) visszahívása",
+                        key=f"recall_btn_{c['id']}",
+                    ):
+                        recalled = c["kovetkezo"].pop()
+                        data["raktar"].append(recalled)
+                        save_data(data)
+                        st.success(
+                            f"'{recalled}' visszakerült a raktárba a #{c['id']} csapról!"
+                        )
+                        st.rerun()
+
+                st.markdown(
+                    "<hr style='margin: 4px 0; border-color: #222;'>",
+                    unsafe_allow_html=True,
+                )
+
+    if not has_waiting:
         st.info("Jelenleg egyetlen csapon sincs várakozó hordó.")
 
     st.markdown("---")
