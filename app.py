@@ -151,7 +151,6 @@ if "szinek" not in data:
 if "kuka_history" not in data:
     data["kuka_history"] = []
 
-# Megerősítési állapotok inicializálása
 if "confirm_wash" not in st.session_state:
     st.session_state["confirm_wash"] = False
 if "confirm_co2" not in st.session_state:
@@ -162,11 +161,27 @@ def format_beer_badge(beer_name):
     if not beer_name or beer_name == "— ÜRES —":
         return "<span style='color: #888; font-size: 0.8rem;'>— ÜRES —</span>"
 
-    # Tört hordó színének meghatározása az alapsör alapján
     base_name = beer_name.replace(" (tört)", "").strip()
     color = data["szinek"].get(base_name, "#3498DB")
 
     return f"<span style='background-color: {color}; color: #ffffff; padding: 3px 8px; border-radius: 8px; font-weight: bold; font-size: 0.8rem; display: inline-block; white-space: nowrap;'>{beer_name}</span>"
+
+
+# PONT 1: Ajánlott csap meghatározása
+def get_recommended_tap_index(beer_name, csapok):
+    base_beer = beer_name.replace(" (tört)", "").strip()
+
+    # 1. Keresés az aktívan csapon lévő sörök között
+    for idx, c in enumerate(csapok):
+        if c["jelenlegi"] == base_beer:
+            return idx
+
+    # 2. Keresés a várakozó sörök között
+    for idx, c in enumerate(csapok):
+        if base_beer in c["kovetkezo"]:
+            return idx
+
+    return 0
 
 
 st.title("🍺 Csaplista & Hordókövető")
@@ -201,19 +216,6 @@ with tab_csapok:
         <style>
             [data-testid="column"] { min-width: 0 !important; }
             .stButton button { width: 100%; min-width: 70px; }
-            
-            div.stButton > button.btn-wash {
-                background-color: #FF69B4 !important;
-                color: white !important;
-                border: none !important;
-                font-weight: bold !important;
-            }
-            div.stButton > button.btn-co2 {
-                background-color: #1E90FF !important;
-                color: white !important;
-                border: none !important;
-                font-weight: bold !important;
-            }
         </style>
     """,
         unsafe_allow_html=True,
@@ -302,7 +304,6 @@ with tab_csapok:
 with tab_kuka:
     st.subheader("Futárra Váró Üres Hordók")
 
-    # PONT 1 & 4: Elszállítás visszavonása gomb és Véglegesítés
     col_k_undo, col_k_save = st.columns(2)
 
     with col_k_undo:
@@ -335,7 +336,6 @@ with tab_kuka:
     if data["kuka"]:
         kuka_counts = Counter(data["kuka"])
         for beer_name, count in kuka_counts.items():
-            # PONT 2: Visszaküldés raktárba gomb a bal oldalon
             k_col0, k_col1, k_col2, k_col3 = st.columns(
                 [2, 3, 2, 2], vertical_alignment="center"
             )
@@ -345,7 +345,6 @@ with tab_kuka:
                     "↩️ Raktárba (tört)", key=f"return_wh_btn_{beer_name}"
                 ):
                     data["kuka"].remove(beer_name)
-                    # PONT 2: Tört jelölés hozzáadása
                     tort_name = (
                         beer_name
                         if "(tört)" in beer_name
@@ -353,7 +352,6 @@ with tab_kuka:
                     )
                     data["raktar"].append(tort_name)
 
-                    # Szín beállítása ha új tétel lenne
                     base_name = beer_name.replace(" (tört)", "").strip()
                     if (
                         base_name in data["szinek"]
@@ -387,7 +385,6 @@ with tab_kuka:
                 if st.button(
                     "🚚 Elszállítás", key=f"take_btn_{beer_name}"
                 ):
-                    # Előzmény elmentése a visszavonhatósághoz
                     data["kuka_history"].append(list(data["kuka"]))
                     for _ in range(take_count):
                         if beer_name in data["kuka"]:
@@ -421,12 +418,20 @@ with tab_kuka:
 with tab_admin:
     st.subheader("🧼 Karbantartási Műveletek")
 
-    # PONT 3: CSAPMOSÁS ÉS CO2 CSERE EGY SORBAN
+    # PONT 2: NAGYOBB, IGÉNYES KÁRTYÁS ELHELYEZÉS
     m1, m2 = st.columns(2)
 
     with m1:
+        st.markdown(
+            "### 🧼 Csapmosás\n*Utolsó mosás dátumának frissítése a mai napra.*"
+        )
         if not st.session_state["confirm_wash"]:
-            if st.button("🧼 csap mosása", key="btn_wash_act"):
+            if st.button(
+                "🧼 csap mosása",
+                key="btn_wash_act",
+                type="primary",
+                use_container_width=True,
+            ):
                 st.session_state["confirm_wash"] = True
                 st.rerun()
         else:
@@ -447,8 +452,16 @@ with tab_admin:
                     st.rerun()
 
     with m2:
+        st.markdown(
+            "### 💨 CO2 Palack Csere\n*Utolsó palackcsere dátumának frissítése a mai napra.*"
+        )
         if not st.session_state["confirm_co2"]:
-            if st.button("💨 co lecserélése", key="btn_co2_act"):
+            if st.button(
+                "💨 co lecserélése",
+                key="btn_co2_act",
+                type="primary",
+                use_container_width=True,
+            ):
                 st.session_state["confirm_co2"] = True
                 st.rerun()
         else:
@@ -463,7 +476,7 @@ with tab_admin:
                     st.session_state["confirm_co2"] = False
                     st.success("CO2 csere dátuma frissítve!")
                     st.rerun()
-            with cc2:
+            with wc2:
                 if st.button("❌ Mégse", key="cancel_co2_btn"):
                     st.session_state["confirm_co2"] = False
                     st.rerun()
@@ -508,6 +521,11 @@ with tab_admin:
                     [3, 3, 2, 2], vertical_alignment="center"
                 )
 
+                # PONT 1: Automatikus csapajánlás kiszámítása
+                default_tap_index = get_recommended_tap_index(
+                    beer_name, data["csapok"]
+                )
+
                 with r_col1:
                     st.markdown(
                         f"{format_beer_badge(beer_name)} &nbsp; **({count} db)**",
@@ -518,6 +536,7 @@ with tab_admin:
                     selected_tap_str = st.selectbox(
                         "Csap:",
                         csap_options,
+                        index=default_tap_index,  # PONT 1: Ajánlott csap automatikus kiválasztása
                         key=f"wh_select_tap_{beer_name}",
                         label_visibility="collapsed",
                     )
@@ -554,7 +573,6 @@ with tab_admin:
         else:
             st.info("A raktár jelenleg üres.")
 
-    # PONT 3: ÚJ / MEGLÉVŐ SÖR HOZZÁADÁS SZÉP GOMBOKKAL
     with col_r2:
         st.markdown("**Új hordó hozzáadása a raktárhoz:**")
 
@@ -566,7 +584,6 @@ with tab_admin:
         )
 
         if add_type == "Meglévő sörök közül":
-            # Tört szavak nélküli egyedi nevek kigyűjtése
             meglevo_sorok = sorted(
                 list(
                     set(
