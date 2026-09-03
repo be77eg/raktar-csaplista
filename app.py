@@ -148,12 +148,18 @@ if "raktar" not in data:
 if "szinek" not in data:
     data["szinek"] = DEFAULT_COLORS
 
+# Megerősítési állapotok inicializálása
+if "confirm_wash" not in st.session_state:
+    st.session_state["confirm_wash"] = False
+if "confirm_co2" not in st.session_state:
+    st.session_state["confirm_co2"] = False
+
 
 def format_beer_badge(beer_name):
     if not beer_name or beer_name == "— ÜRES —":
         return "<span style='color: #888; font-size: 0.8rem;'>— ÜRES —</span>"
     color = data["szinek"].get(beer_name, "#3498DB")
-    return f"<span style='background-color: {color}; color: #ffffff; padding: 3px 8px; border-radius: 10px; font-weight: bold; font-size: 0.8rem; display: inline-block; white-space: nowrap;'>{beer_name}</span>"
+    return f"<span style='background-color: {color}; color: #ffffff; padding: 3px 8px; border-radius: 8px; font-weight: bold; font-size: 0.8rem; display: inline-block; white-space: nowrap;'>{beer_name}</span>"
 
 
 st.title("🍺 Csaplista & Hordókövető")
@@ -180,91 +186,97 @@ tab_csapok, tab_kuka, tab_admin = st.tabs(
     ["🚰 Csapok (1-12)", "🗑️ Üres Hordók (Kuka)", "⚙️ Menedzsment & Raktár"]
 )
 
-# 1. TAB: CSAPLISTA (NATIVE TABLE FORMÁTUM MOBIL ÉS PC KOMPATIBILISEN)
+# 1. TAB: CSAPLISTA (Minden képernyőméreten fixen elrendezve)
 with tab_csapok:
     st.subheader("Aktív Csapok Állapota")
 
-    # Egyedi HTML táblázat építése
-    table_html = """
-    <style>
-        .tap-table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; font-size: 0.9rem; }
-        .tap-table th { background-color: #1e1e1e; color: #fff; text-align: center; padding: 10px 4px; border-bottom: 2px solid #444; }
-        .tap-table td { text-align: center; padding: 10px 4px; border-bottom: 1px solid #333; vertical-align: middle; }
-        .tap-table tr:nth-child(even) { background-color: #181818; }
-    </style>
-    <div style="overflow-x: auto;">
-        <table class="tap-table">
-            <thead>
-                <tr>
-                    <th style="width: 10%;">Csap</th>
-                    <th style="width: 30%;">Jelenlegi sör</th>
-                    <th style="width: 40%;">Következő hordók</th>
-                    <th style="width: 20%;">Utolsó csere</th>
-                </tr>
-            </thead>
-            <tbody>
-    """
-
-    for c in data["csapok"]:
-        jelenlegi = format_beer_badge(c["jelenlegi"])
-        if c["kovetkezo"]:
-            kov_badges = [format_beer_badge(k) for k in c["kovetkezo"]]
-            arrow = " <span style='color:#aaa;'>➜</span> "
-            kovetkezo = arrow.join(kov_badges)
-        else:
-            kovetkezo = (
-                "<span style='color: #666; font-size: 0.8rem;'>Nincs</span>"
-            )
-
-        table_html += f"""
-        <tr>
-            <td><b>#{c['id']}</b></td>
-            <td>{jelenlegi}</td>
-            <td>{kovetkezo}</td>
-            <td style="color: #aaa; font-size: 0.8rem;">{c['datum']}</td>
-        </tr>
+    # Mobil oszlopok összeugrásának megakadályozása CSS-sel
+    st.markdown(
         """
-
-    table_html += "</tbody></table></div>"
-    st.markdown(table_html, unsafe_allow_html=True)
-
-    st.markdown("---")
-    st.markdown("**⚡ Gyors Hordócsere (Válaszd ki a csapot):**")
-
-    # Csere opciók sorban gombokkal elcsúszás nélkül
-    csap_list = [f"#{c['id']} - {c['jelenlegi']}" for c in data["csapok"]]
-    selected_swap_tap = st.selectbox(
-        "Melyik csapon történt csere?", csap_list, key="main_swap_select"
+        <style>
+            [data-testid="column"] { min-width: 0 !important; }
+            .stButton button { width: 100%; min-width: 70px; }
+        </style>
+    """,
+        unsafe_allow_html=True,
     )
 
-    if st.button("🔄 Hordócsere Végrehajtása", type="primary"):
-        c_id = int(selected_swap_tap.split(" ")[0].replace("#", ""))
-        target_c = next(c for c in data["csapok"] if c["id"] == c_id)
+    # Fejléc
+    h1, h2, h3, h4, h5 = st.columns([1, 3, 4, 2, 2])
+    h1.markdown("**Csap**")
+    h2.markdown("**Jelenlegi sör**")
+    h3.markdown("**Következő hordók**")
+    h4.markdown("**Utolsó csere**")
+    h5.markdown("**Művelet**")
+    st.markdown(
+        "<hr style='margin: 2px 0 10px 0; border-color: #555;'>",
+        unsafe_allow_html=True,
+    )
 
-        if "history" not in data:
-            data["history"] = []
-        data["history"].append(
-            {
-                "csapok": json.loads(json.dumps(data["csapok"])),
-                "kuka": list(data["kuka"]),
-                "raktar": list(data.get("raktar", [])),
-            }
+    for c in data["csapok"]:
+        c1, c2, c3, c4, c5 = st.columns(
+            [1, 3, 4, 2, 2], vertical_alignment="center"
         )
-        if len(data["history"]) > 5:
-            data["history"].pop(0)
 
-        if target_c["jelenlegi"]:
-            data["kuka"].append(target_c["jelenlegi"])
+        with c1:
+            st.markdown(f"**#{c['id']}**")
 
-        if len(target_c["kovetkezo"]) > 0:
-            target_c["jelenlegi"] = target_c["kovetkezo"].pop(0)
-        else:
-            target_c["jelenlegi"] = ""
+        with c2:
+            st.markdown(
+                format_beer_badge(c["jelenlegi"]), unsafe_allow_html=True
+            )
 
-        target_c["datum"] = datetime.datetime.now().strftime("%Y-%m-%d")
-        save_data(data)
-        st.success(f"#{c_id} csap sikeresen kicserélve!")
-        st.rerun()
+        with c3:
+            if c["kovetkezo"]:
+                kov_badges = [format_beer_badge(k) for k in c["kovetkezo"]]
+                arrow = (
+                    " <span style='color:#888; font-weight:bold;'>➜</span> "
+                )
+                st.markdown(
+                    arrow.join(kov_badges), unsafe_allow_html=True
+                )
+            else:
+                st.markdown(
+                    "<span style='color: #666; font-size: 0.8rem;'>Nincs</span>",
+                    unsafe_allow_html=True,
+                )
+
+        with c4:
+            st.markdown(
+                f"<span style='color: #aaa; font-size: 0.8rem;'>{c['datum']}</span>",
+                unsafe_allow_html=True,
+            )
+
+        with c5:
+            if st.button("🔄 Csere", key=f"btn_swap_{c['id']}"):
+                if "history" not in data:
+                    data["history"] = []
+                data["history"].append(
+                    {
+                        "csapok": json.loads(json.dumps(data["csapok"])),
+                        "kuka": list(data["kuka"]),
+                        "raktar": list(data.get("raktar", [])),
+                    }
+                )
+                if len(data["history"]) > 5:
+                    data["history"].pop(0)
+
+                if c["jelenlegi"]:
+                    data["kuka"].append(c["jelenlegi"])
+
+                if len(c["kovetkezo"]) > 0:
+                    c["jelenlegi"] = c["kovetkezo"].pop(0)
+                else:
+                    c["jelenlegi"] = ""
+
+                c["datum"] = datetime.datetime.now().strftime("%Y-%m-%d")
+                save_data(data)
+                st.rerun()
+
+        st.markdown(
+            "<hr style='margin: 4px 0; border-color: #222;'>",
+            unsafe_allow_html=True,
+        )
 
 # 2. TAB: KUKA
 with tab_kuka:
@@ -297,31 +309,54 @@ with tab_kuka:
 
 # 3. TAB: MENEDZSMENT & RAKTÁR
 with tab_admin:
-    st.subheader("🧼 Karbantartási Műveletek (Megerősítéssel)")
+    st.subheader("🧼 Karbantartási Műveletek")
 
-    # 1. KARBANTARTÁS FELÜL
+    # 1. KARBANTARTÁS GOMBOK MEGERŐSÍTÉSSEL
     m1, m2 = st.columns(2)
+
     with m1:
-        st.markdown("**Csapmosás Regisztrálása:**")
-        if st.checkbox("Elvégeztem a csapmosást ma", key="chk_wash"):
-            if st.button("💾 Csapmosás Dátumának Mentése", type="primary"):
-                data["csapmosas"] = datetime.datetime.now().strftime(
-                    "%Y-%m-%d"
-                )
-                save_data(data)
-                st.success("Csapmosás dátuma frissítve!")
+        if not st.session_state["confirm_wash"]:
+            if st.button("🧼 Takarítás ma (Csapmosás)", type="primary"):
+                st.session_state["confirm_wash"] = True
                 st.rerun()
+        else:
+            st.warning("❓ **Biztosan ma végezted el a csapmosást?**")
+            wc1, wc2 = st.columns(2)
+            with wc1:
+                if st.button("✅ Igen, mentés", key="save_wash_btn"):
+                    data["csapmosas"] = datetime.datetime.now().strftime(
+                        "%Y-%m-%d"
+                    )
+                    save_data(data)
+                    st.session_state["confirm_wash"] = False
+                    st.success("Csapmosás dátuma frissítve!")
+                    st.rerun()
+            with wc2:
+                if st.button("❌ Mégse", key="cancel_wash_btn"):
+                    st.session_state["confirm_wash"] = False
+                    st.rerun()
 
     with m2:
-        st.markdown("**CO2 Csere Regisztrálása:**")
-        if st.checkbox("Elvégeztem a CO2 palack cseréjét ma", key="chk_co2"):
-            if st.button("💾 CO2 Csere Dátumának Mentése", type="primary"):
-                data["co2_csere"] = datetime.datetime.now().strftime(
-                    "%Y-%m-%d"
-                )
-                save_data(data)
-                st.success("CO2 csere dátuma frissítve!")
+        if not st.session_state["confirm_co2"]:
+            if st.button("💨 CO2 csere ma", type="primary"):
+                st.session_state["confirm_co2"] = True
                 st.rerun()
+        else:
+            st.warning("❓ **Biztosan ma cserélted ki a CO2 palackot?**")
+            cc1, cc2 = st.columns(2)
+            with cc1:
+                if st.button("✅ Igen, mentés", key="save_co2_btn"):
+                    data["co2_csere"] = datetime.datetime.now().strftime(
+                        "%Y-%m-%d"
+                    )
+                    save_data(data)
+                    st.session_state["confirm_co2"] = False
+                    st.success("CO2 csere dátuma frissítve!")
+                    st.rerun()
+            with cc2:
+                if st.button("❌ Mégse", key="cancel_co2_btn"):
+                    st.session_state["confirm_co2"] = False
+                    st.rerun()
 
     st.markdown("---")
 
@@ -434,7 +469,9 @@ with tab_admin:
 
             with v_col2:
                 kov_badges = [format_beer_badge(k) for k in c["kovetkezo"]]
-                arrow_html = " <span style='color: #888;'>➜</span> "
+                arrow_html = (
+                    " <span style='color: #888; font-weight: bold;'>➜</span> "
+                )
                 st.markdown(
                     arrow_html.join(kov_badges), unsafe_allow_html=True
                 )
