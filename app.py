@@ -184,54 +184,109 @@ def get_recommended_tap_option_index(beer_name, csapok):
     return 0
 
 
-# STÍLUSOK (SELECTBOX MEGÁLLÍTÁSA ÉS METRIKA HELYREÁLLÍTÁSA)
+def get_all_active_system_beers(data):
+    """Visszaadja az összes olyan sört, ami legalább 1 helyen megtalálható a rendszerben (Csapon, Várakozóban, Raktárban vagy Kukában)"""
+    beers = set()
+
+    for c in data["csapok"]:
+        if c["jelenlegi"]:
+            beers.add(c["jelenlegi"])
+        for k in c["kovetkezo"]:
+            beers.add(k)
+
+    for r in data.get("raktar", []):
+        beers.add(r)
+
+    for k in data.get("kuka", []):
+        beers.add(k)
+
+    return sorted(list(beers))
+
+
+# LETISZTÍTOTT, EGYESÍTETT CSS CSOMAG
+bg_tap = "#1E88E5" if st.session_state["active_tab"] == "🚰 Csapok" else "#222"
+bg_trash = (
+    "#E53935" if st.session_state["active_tab"] == "🗑️ Üres Hordók" else "#222"
+)
+bg_mgm = (
+    "#43A047"
+    if st.session_state["active_tab"] == "⚙️ Menedzsment & Raktár"
+    else "#222"
+)
+
 st.html(
-    """
+    f"""
     <style>
-        /* Selectbox billentyűzet tiltás */
-        div[data-baseweb="select"] input {
+        div[data-baseweb="select"] input {{
             pointer-events: none !important;
-        }
-        
-        /* Metrikák balra igazítása (Eredeti állapot) */
-        div[data-testid="stMetric"] {
+        }}
+        div[data-testid="stMetric"] {{
             text-align: left !important;
-        }
-        div[data-testid="stMetric"] > div {
+        }}
+        div[data-testid="stMetric"] > div {{
             justify-content: flex-start !important;
-        }
+        }}
+        div.stButton > button[key='nav_tap'] {{
+            background-color: {bg_tap} !important;
+            color: white !important;
+            border: 1px solid #1E88E5 !important;
+            font-size: 1.05rem !important;
+            font-weight: bold !important;
+        }}
+        div.stButton > button[key='nav_trash'] {{
+            background-color: {bg_trash} !important;
+            color: white !important;
+            border: 1px solid #E53935 !important;
+            font-size: 1.05rem !important;
+            font-weight: bold !important;
+        }}
+        div.stButton > button[key='nav_mgm'] {{
+            background-color: {bg_mgm} !important;
+            color: white !important;
+            border: 1px solid #43A047 !important;
+            font-size: 1.05rem !important;
+            font-weight: bold !important;
+        }}
+        div.stButton > button[key='btn_wash_act'] {{
+            background-color: #E91E63 !important;
+            color: white !important;
+            border: 1px solid #E91E63 !important;
+        }}
+        div.stButton > button[key='btn_co2_act'] {{
+            background-color: #2196F3 !important;
+            color: white !important;
+            border: 1px solid #2196F3 !important;
+        }}
+        div.stButton > button[key="add_exist_btn"],
+        div.stButton > button[key="add_tort_btn"],
+        div.stButton > button[key="add_new_beer_btn"] {{
+            background-color: #2E7D32 !important;
+            color: white !important;
+            border: 1px solid #2E7D32 !important;
+        }}
+        [data-testid="column"] {{ min-width: 0 !important; }}
+        .stButton button {{ width: 100%; min-width: 70px; }}
     </style>
 """
 )
 
-# 5. PONT: UGAR BREWPUB CÍMFEJLÉC
+# CÍMFEJLÉC
 st.markdown(
     "<h3 style='margin-bottom: -15px; color: #FFA726; font-weight: bold;'>UGAR brewpub</h3>",
     unsafe_allow_html=True,
 )
 st.title("🍺 Csaplista & Hordókövető")
 
-# NAVIGÁCIÓS GOMBOK KÖZÉPRE ZÁRVA ÉS STÍLUSOZVA
+# NAVIGÁCIÓS GOMBOK
 st.markdown("<br>", unsafe_allow_html=True)
 nav_col1, nav_col2, nav_col3, nav_col4, nav_col5 = st.columns([1, 2, 2, 2, 1])
 
-# 2. PONT: GOMBSZÍNEK BIZTOSÍTÁSA ST.HTML-EL
 with nav_col2:
-    bg_tap = "#1E88E5" if st.session_state["active_tab"] == "🚰 Csapok" else "#222"
-    st.html(
-        f"<style>div.stButton > button[key='nav_tap'] {{ background-color: {bg_tap} !important; color: white !important; border: 1px solid #1E88E5 !important; font-size: 1.05rem !important; font-weight: bold !important; }}</style>"
-    )
     if st.button("🚰 Csapok", key="nav_tap", use_container_width=True):
         st.session_state["active_tab"] = "🚰 Csapok"
         st.rerun()
 
 with nav_col3:
-    bg_trash = (
-        "#E53935" if st.session_state["active_tab"] == "🗑️ Üres Hordók" else "#222"
-    )
-    st.html(
-        f"<style>div.stButton > button[key='nav_trash'] {{ background-color: {bg_trash} !important; color: white !important; border: 1px solid #E53935 !important; font-size: 1.05rem !important; font-weight: bold !important; }}</style>"
-    )
     if st.button(
         "🗑️ Üres Hordók", key="nav_trash", use_container_width=True
     ):
@@ -239,14 +294,6 @@ with nav_col3:
         st.rerun()
 
 with nav_col4:
-    bg_mgm = (
-        "#43A047"
-        if st.session_state["active_tab"] == "⚙️ Menedzsment & Raktár"
-        else "#222"
-    )
-    st.html(
-        f"<style>div.stButton > button[key='nav_mgm'] {{ background-color: {bg_mgm} !important; color: white !important; border: 1px solid #43A047 !important; font-size: 1.05rem !important; font-weight: bold !important; }}</style>"
-    )
     if st.button(
         "⚙️ Menedzsment & Raktár", key="nav_mgm", use_container_width=True
     ):
@@ -269,16 +316,6 @@ if st.session_state["active_tab"] == "🚰 Csapok":
             st.rerun()
 
     st.subheader("Aktív Csapok Állapota")
-
-    st.markdown(
-        """
-        <style>
-            [data-testid="column"] { min-width: 0 !important; }
-            .stButton button { width: 100%; min-width: 70px; }
-        </style>
-    """,
-        unsafe_allow_html=True,
-    )
 
     h1, h2, h3, h4, h5 = st.columns([1, 3, 4, 2, 2])
     h1.markdown("**Csap**")
@@ -395,7 +432,6 @@ elif st.session_state["active_tab"] == "🗑️ Üres Hordók":
     if data["kuka"]:
         kuka_counts = Counter(data["kuka"])
         for beer_name, count in sorted(kuka_counts.items()):
-            # 3. PONT: ARÁNYOSABB KUKA ELRENDEZÉS
             k_col0, k_col1, k_col2, k_col3 = st.columns(
                 [2, 3, 1.5, 1.5], vertical_alignment="center"
             )
@@ -484,13 +520,9 @@ elif st.session_state["active_tab"] == "⚙️ Menedzsment & Raktár":
 
     m1, m2 = st.columns(2)
 
-    # 4. PONT: CSAPMOSÁS ÉS CO2 INFÓK ÁTHELYEZVE A MENEGAMENT TAB-BA A GOMBOK FÖLÉ
     with m1:
         st.info(f"🧼 **Utolsó csapmosás:** {data.get('csapmosas', '—')}")
         with st.container(border=True):
-            st.html(
-                "<style>div.stButton > button[key='btn_wash_act'] { background-color: #E91E63 !important; color: white !important; border: 1px solid #E91E63 !important; }</style>"
-            )
             if not st.session_state["confirm_wash"]:
                 if st.button(
                     "🧼 Csap mosása",
@@ -525,9 +557,6 @@ elif st.session_state["active_tab"] == "⚙️ Menedzsment & Raktár":
     with m2:
         st.warning(f"💨 **Utolsó CO2 csere:** {data.get('co2_csere', '—')}")
         with st.container(border=True):
-            st.html(
-                "<style>div.stButton > button[key='btn_co2_act'] { background-color: #2196F3 !important; color: white !important; border: 1px solid #2196F3 !important; }</style>"
-            )
             if not st.session_state["confirm_co2"]:
                 if st.button(
                     "💨 CO2 lecserélése",
@@ -561,7 +590,6 @@ elif st.session_state["active_tab"] == "⚙️ Menedzsment & Raktár":
 
     st.markdown("---")
 
-    # 1. PONT: TELJES HORDÓ KIMUTATÁS (EREDETI BALRA IGAZÍTOTT SZÁMOK)
     st.subheader("📊 Teljes Hordó Készletnyilvántartás")
 
     teli_csapokon = sum(1 for c in data["csapok"] if c["jelenlegi"])
@@ -689,21 +717,6 @@ elif st.session_state["active_tab"] == "⚙️ Menedzsment & Raktár":
         with st.container(border=True):
             st.markdown("### Hordó Hozzáadása Raktárhoz")
 
-            # 2. PONT: ZÖLD HOZZÁADÁS GOMBSZÍNEK BIZTOSÍTÁSA
-            st.html(
-                """
-                <style>
-                    div.stButton > button[key="add_exist_btn"],
-                    div.stButton > button[key="add_tort_btn"],
-                    div.stButton > button[key="add_new_beer_btn"] {
-                        background-color: #2E7D32 !important;
-                        color: white !important;
-                        border: 1px solid #2E7D32 !important;
-                    }
-                </style>
-            """
-            )
-
             add_type = st.segmented_control(
                 "Típus kiválasztása:",
                 ["Meglévő sörök", "Tört hordó hozzáadása", "Vadonatúj sör"],
@@ -711,15 +724,25 @@ elif st.session_state["active_tab"] == "⚙️ Menedzsment & Raktár":
                 key="add_type_segmented",
             )
 
+            # 1. PONT: A RENDSZERBEN JELENLEG LÉTEZŐ ÖSSZES SÖR LEKÉRÉSE
+            rendszerben_levo_sorok = get_all_active_system_beers(data)
+
             if add_type == "Meglévő sörök":
-                minden_sor = sorted(list(set(data.get("raktar", []))))
-                tisztitott_sorok = [
-                    s for s in minden_sor if "(tört)" not in s
-                ]
+                tisztitott_sorok = sorted(
+                    list(
+                        set(
+                            [
+                                s
+                                for s in rendszerben_levo_sorok
+                                if "(tört)" not in s
+                            ]
+                        )
+                    )
+                )
 
                 if tisztitott_sorok:
                     valasztott_meglevo = st.selectbox(
-                        "Válassz teljes hordós sört:",
+                        "Válassz a rendszerben lévő sörökből:",
                         tisztitott_sorok,
                         key="select_existing_beer",
                     )
@@ -739,11 +762,11 @@ elif st.session_state["active_tab"] == "⚙️ Menedzsment & Raktár":
                             data["raktar"].append(valasztott_meglevo)
                         save_data(data)
                         st.success(
-                            f"{db_szam} db '{valasztott_meglevo}' hozzáadva!"
+                            f"{db_szam} db '{valasztott_meglevo}' hozzáadva a raktárhoz!"
                         )
                         st.rerun()
                 else:
-                    st.warning("Nincs teljes hordó a raktári listában!")
+                    st.warning("Nincs egyetlen elérhető sör sem a rendszerben!")
 
             elif add_type == "Tört hordó hozzáadása":
                 minden_alap_sor = sorted(
@@ -751,7 +774,7 @@ elif st.session_state["active_tab"] == "⚙️ Menedzsment & Raktár":
                         set(
                             [
                                 s.replace(" (tört)", "").strip()
-                                for s in data.get("raktar", [])
+                                for s in rendszerben_levo_sorok
                             ]
                         )
                     )
@@ -786,11 +809,11 @@ elif st.session_state["active_tab"] == "⚙️ Menedzsment & Raktár":
 
                         save_data(data)
                         st.success(
-                            f"{db_szam_tort} db '{tort_teljes_nev}' hozzáadva!"
+                            f"{db_szam_tort} db '{tort_teljes_nev}' hozzáadva a raktárhoz!"
                         )
                         st.rerun()
                 else:
-                    st.warning("Előbb vegyél fel legalább egy rendes sört!")
+                    st.warning("Nincs elérhető sör a tört hordó készítéséhez!")
 
             else:
                 uj_sor_nev = st.text_input(
