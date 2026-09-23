@@ -1,10 +1,17 @@
 import os
-import json
-import datetime
+import streamlit as st
+from supabase import create_client, Client
 
-DATA_DIR = "data"
-BACKUP_DIR = os.path.join(DATA_DIR, "backups")
-DATA_FILE = os.path.join(DATA_DIR, "csaplista_data.json")
+# --- SUPABASE KAPCSOLAT BEÁLLÍTÁSA ---
+# A titkos kulcsokat a Streamlit titkosítójából (st.secrets) olvassuk ki biztonságosan
+SUPABASE_URL = st.secrets.get("SUPABASE_URL", os.environ.get("SUPABASE_URL", ""))
+SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", os.environ.get("SUPABASE_KEY", ""))
+
+def init_supabase() -> Client:
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        st.error("⚠️ Nincsenek beállítva a Supabase hozzáférési adatok! Ellenőrizd a titkos kulcsokat.")
+        st.stop()
+    return create_client(SUPABASE_URL, SUPABASE_KEY)
 
 DEFAULT_COLORS = {
     "I do what I want": "#FF5733",
@@ -21,10 +28,6 @@ DEFAULT_COLORS = {
     "Stróman": "#27AE60",
     "Fake Your Pils": "#F1C40F",
 }
-
-def ensure_directories():
-    os.makedirs(DATA_DIR, exist_ok=True)
-    os.makedirs(BACKUP_DIR, exist_ok=True)
 
 def get_default_data():
     return {
@@ -52,59 +55,26 @@ def get_default_data():
     }
 
 def load_data():
-    ensure_directories()
-    
-    # 1. Próbáljuk betölteni a fő adatfájlból
-    if os.path.exists(DATA_FILE):
-        try:
-            with open(DATA_FILE, "r", encoding="utf-8") as f:
-                content = f.read().strip()
-                if content:
-                    data = json.loads(content)
-                    if isinstance(data, dict) and "csapok" in data:
-                        return data, None
-        except Exception:
-            pass
-
-    # 2. Ha hiba van vagy nincs fő fájl, keressük a legfrissebb backupot
-    if os.path.exists(BACKUP_DIR):
-        backup_files = [os.path.join(BACKUP_DIR, f) for f in os.listdir(BACKUP_DIR) if f.endswith(".json")]
-        if backup_files:
-            latest_backup = max(backup_files, key=os.path.getmtime)
-            try:
-                with open(latest_backup, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    msg = f"Sikerült visszaállítani az adatokat innen: {os.path.basename(latest_backup)}"
-                    return data, msg
-            except Exception:
-                pass
-
-    # 3. Ha semmi nincs, inicializáljuk az alapértelmezett adatokkal
-    initial_data = get_default_data()
-    save_data(initial_data)
-    return initial_data, "Új adatbázis lett inicializálva az alapértelmezett adatokkal."
+    try:
+        supabase = init_supabase()
+        response = supabase.table("app_data").select("payload").eq("id", 1).execute()
+        
+        if response.data and len(response.data) > 0:
+            payload = response.data[0].get("payload")
+            if payload and isinstance(payload, dict) and "csapok" in payload:
+                return payload, None
+                
+        # Ha üres az adatbázis, feltöltjük az alapértelmezettel
+        initial_data = get_default_data()
+        save_data(initial_data)
+        return initial_data, "Az adatbázis üres volt, inicializálva az alapértelmezett adatokkal."
+    except Exception as e:
+        return get_default_data(), f"Hiba történt az adatbázis elérésekor: {e}"
 
 def save_data(data):
-    ensure_directories()
     try:
-        with open(DATA_FILE, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=4)
+        supabase = init_supabase()
+        supabase.table("app_data").upsert({"id": 1, "payload": data}).execute()
+        return True, None
     except Exception as e:
         return False, str(e)
-
-    # Biztonsági mentés időbélyeggel
-    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup_file_path = os.path.join(BACKUP_DIR, f"csaplista_backup_{timestamp}.json")
-    try:
-        with open(backup_file_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=4)
-            
-        # Csak az utolsó 20 mentés megőrzése
-        all_backups = sorted([os.path.join(BACKUP_DIR, f) for f in os.listdir(BACKUP_DIR) if f.endswith(".json")], key=os.path.getmtime)
-        if len(all_backups) > 20:
-            for old_file in all_backups[:-20]:
-                os.remove(old_file)
-    except Exception:
-        pass
-
-    return True, None
