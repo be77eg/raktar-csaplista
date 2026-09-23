@@ -1,116 +1,78 @@
-import os
-import json
-import datetime
 import streamlit as st
-
-# --- KONFIGURÁCIÓ ÉS FÁJLÚTVONALAK ---
-DATA_DIR = "data"
-BACKUP_DIR = os.path.join(DATA_DIR, "backups")
-DATA_FILE = os.path.join(DATA_DIR, "csaplista_data.json")
-
-# Alapértelmezett színpaletta (csak teljesen új, üres induláskor használatos)
-DEFAULT_COLORS = {
-    "I do what I want": "#FF5733",
-    "The Age of Heat Dome": "#33FF57",
-    "Let's Jump": "#3357FF",
-    "Trailer #50 Fifty Shades of Haze": "#F39C12",
-    "Heart and Sour": "#E74C3C",
-    "F**k You Please": "#9B59B6",
-    "Grain Cosmos": "#1ABC9C",
-    "Trailer #49 Let's Go B(ea)ches": "#D35400",
-    "Rosa": "#FF69B4",
-    "Dark Vanilla Sky": "#34495E",
-    "Trailer #48 Universe of Senses": "#16A085",
-    "Stróman": "#27AE60",
-    "Fake Your Pils": "#F1C40F",
-}
-
-def ensure_directories():
-    """Létrehozza a szükséges mappákat, ha még nem léteznek."""
-    os.makedirs(DATA_DIR, exist_ok=True)
-    os.makedirs(BACKUP_DIR, exist_ok=True)
-
-def get_empty_database_structure():
-    """Teljesen üres, tiszta szerkezet az első induláshoz."""
-    return {
-        "csapok": [{"id": i, "jelenlegi": "", "datum": "", "kovetkezo": []} for i in range(1, 13)],
-        "kuka": [],
-        "raktar": [],
-        "szinek": DEFAULT_COLORS,
-        "csapmosas": "",
-        "co2_csere": "",
-        "history": [],
-        "kuka_history": [],
-    }
-
-def load_data():
-    """
-    Mindig a legutolsó érvényes fizikai állapotot tölti vissza.
-    Ha a fő fájl sérült vagy hiányzik, a backup mappából keresi a legfrissebbet.
-    """
-    ensure_directories()
-    
-    # 1. Próbáljuk meg a fő adatfájlt betölteni
-    if os.path.exists(DATA_FILE):
-        try:
-            with open(DATA_FILE, "r", encoding="utf-8") as f:
-                content = f.read().strip()
-                if content:
-                    data = json.loads(content)
-                    if isinstance(data, dict) and "csapok" in data:
-                        return data
-        except Exception as e:
-            st.warning(f"A fő adatfájl olvasási hiba miatt sérültnek tűnik: {e}")
-
-    # 2. Ha a fő fájl nem létezik vagy hibás, nézzük meg a mentéseket (Backup)
-    if os.path.exists(BACKUP_DIR):
-        backup_files = [os.path.join(BACKUP_DIR, f) for f in os.listdir(BACKUP_DIR) if f.endswith(".json")]
-        if backup_files:
-            # Rendezzük a fájlokat módosítási idő szerint csökkenőbe (a legfrissebb előre)
-            latest_backup = max(backup_files, key=os.path.getmtime)
-            try:
-                with open(latest_backup, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    st.success(f"Sikerült visszaállítani az adatokat a legfrissebb biztonsági mentésből: {os.path.basename(latest_backup)}")
-                    return data
-            except Exception:
-                pass
-
-    # 3. Ha semmi sincs, akkor inicializáljuk az üres struktúrát
-    initial_data = get_empty_database_structure()
-    save_data(initial_data)
-    return initial_data
-
-def save_data(data):
-    """
-    Elmenti az adatokat a fő fájlba, és készít egy időbélyeges mentést is a backups mappába.
-    Így semmilyen frissítés vagy hiba nem törölheti el véglegesen az adatokat.
-    """
-    ensure_directories()
-    
-    # Adatok mentése a fő fájlba
-    try:
-        with open(DATA_FILE, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=4)
-    except Exception as e:
-        st.error(f"Hiba történt az adatok mentése közben: {e}")
-        return
-
-    # Időbélyeges biztonsági mentés készítése minden mentés alkalmával
-    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup_file_path = os.path.join(BACKUP_DIR, f"csaplista_backup_{timestamp}.json")
-    try:
-        with open(backup_file_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=4)
-            
-        # Takarítsuk ki a túl régi mentéseket (csak az utolsó 20-at őrizzük meg)
-        all_backups = sorted([os.path.join(BACKUP_DIR, f) for f in os.listdir(BACKUP_DIR) if f.endswith(".json")], key=os.path.getmtime)
-        if len(all_backups) > 20:
-            for old_file in all_backups[:-20]:
-                os.remove(old_file)
-    except Exception:
-        pass
+from database import load_data, save_data, DATA_FILE, BACKUP_DIR
 
 # --- ALKALMAZÁS INICIALIZÁLÁSA ---
+st.set_page_config(page_title="Raktár & Csaplista", layout="wide")
+
 if "data" not in st.session_state:
-    st.session_state.data = load_data()
+    data, msg = load_data()
+    st.session_state.data = data
+    if msg:
+        if "Visszaállítva" in msg:
+            st.success(msg)
+        else:
+            st.info(msg)
+
+# --- FELHASZNÁLÓI FELÜLET (UI) ---
+st.title("🍺 Raktár és Csaplista Kezelő")
+
+# Navigációs sáv
+menu = st.sidebar.selectbox("Menü", ["Csapok", "Raktár", "Kuka", "Beállítások / Adatok"])
+
+data = st.session_state.data
+
+if menu == "Csapok":
+    st.header("Aktuális Csapok Állapota")
+    
+    for csap in data["csapok"]:
+        col1, col2, col3 = st.columns([1, 3, 3])
+        with col1:
+            st.write(f"### #{csap['id']}")
+        with col2:
+            uj_jelenlegi = st.text_input(f"Jelenlegi sör (Csap #{csap['id']})", value=csap["jelenlegi"], key=f"jelenlegi_{csap['id']}")
+            if uj_jelenlegi != csap["jelenlegi"]:
+                csap["jelenlegi"] = uj_jelenlegi
+                success, err = save_data(data)
+                if not success:
+                    st.error(f"Mentési hiba: {err}")
+        with col3:
+            uj_datum = st.text_input(f"Dátum (Csap #{csap['id']})", value=csap["datum"], key=f"datum_{csap['id']}")
+            if uj_datum != csap["datum"]:
+                csap["datum"] = uj_datum
+                success, err = save_data(data)
+                if not success:
+                    st.error(f"Mentési hiba: {err}")
+        st.divider()
+
+elif menu == "Raktár":
+    st.header("Raktár készlet")
+    raktar_szoveg = st.text_area("Raktáron lévő tételek (soronként egy)", value="\n".join(data["raktar"]))
+    if st.button("Raktár mentése"):
+        data["raktar"] = [sor.strip() for sor in raktar_szoveg.split("\n") if sor.strip()]
+        success, err = save_data(data)
+        if success:
+            st.success("Raktár sikeresen mentve!")
+        else:
+            st.error(f"Hiba: {err}")
+
+elif menu == "Kuka":
+    st.header("Kuka / Kidobott tételek")
+    kuka_szoveg = st.text_area("Kukában lévő tételek (soronként egy)", value="\n".join(data["kuka"]))
+    if st.button("Kuka mentése"):
+        data["kuka"] = [sor.strip() for sor in kuka_szoveg.split("\n") if sor.strip()]
+        success, err = save_data(data)
+        if success:
+            st.success("Kuka sikeresen mentve!")
+        else:
+            st.error(f"Hiba: {err}")
+
+elif menu == "Beállítások / Adatok":
+    st.header("Rendszer / Biztonsági mentések")
+    st.write(f"Aktuális adatfájl helye: `{DATA_FILE}`")
+    st.write(f"Biztonsági mentések mappája: `{BACKUP_DIR}`")
+    
+    if st.button("Adatok újratöltése a fizikai fájlból"):
+        data, msg = load_data()
+        st.session_state.data = data
+        st.success("Adatok frissítve a fizikai tárolóból!")
+        st.rerun()
