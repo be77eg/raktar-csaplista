@@ -2,14 +2,17 @@ import os
 import streamlit as st
 from supabase import create_client, Client
 
+# Visszaállítottuk a kompatibilitási változókat az app.py importjaihoz
+DATA_FILE = "data/csaplista.json"
+BACKUP_DIR = "data/backups"
+
 # --- SUPABASE KAPCSOLAT BEÁLLÍTÁSA ---
-# A titkos kulcsokat a Streamlit titkosítójából (st.secrets) olvassuk ki biztonságosan
 SUPABASE_URL = st.secrets.get("SUPABASE_URL", os.environ.get("SUPABASE_URL", ""))
 SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", os.environ.get("SUPABASE_KEY", ""))
 
 def init_supabase() -> Client:
     if not SUPABASE_URL or not SUPABASE_KEY:
-        st.error("⚠️ Nincsenek beállítva a Supabase hozzáférési adatok! Ellenőrizd a titkos kulcsokat.")
+        st.error("⚠️ Nincsenek beállítva a Supabase hozzáférési adatok a Secrets-ben!")
         st.stop()
     return create_client(SUPABASE_URL, SUPABASE_KEY)
 
@@ -64,11 +67,14 @@ def load_data():
             if payload and isinstance(payload, dict) and "csapok" in payload:
                 return payload, None
                 
-        # Ha üres az adatbázis, feltöltjük az alapértelmezettel
+        # Ha az adatbázis üres, feltöltjük az alapértelmezett adatokkal
         initial_data = get_default_data()
-        save_data(initial_data)
+        success, err = save_data(initial_data)
+        if not success:
+            st.error(f"⚠️ Nem sikerült elmenteni a kezdő adatokat a Supabase-be: {err}")
         return initial_data, "Az adatbázis üres volt, inicializálva az alapértelmezett adatokkal."
     except Exception as e:
+        st.error(f"⚠️ Hiba a Supabase elérésekor: {e}")
         return get_default_data(), f"Hiba történt az adatbázis elérésekor: {e}"
 
 def save_data(data):
