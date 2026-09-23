@@ -71,7 +71,7 @@ def load_data():
             try:
                 with open(latest_backup, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                    st.success(Sikerült visszaállítani az adatokat a legfrissebb biztonsági mentésből: {os.path.basename(latest_backup)})
+                    st.success(f"Sikerült visszaállítani az adatokat a legfrissebb biztonsági mentésből: {os.path.basename(latest_backup)}")
                     return data
             except Exception:
                 pass
@@ -93,7 +93,7 @@ def save_data(data):
         with open(DATA_FILE, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=4)
     except Exception as e:
-        st.error(Hiba történt az adatok mentése közben: {e})
+        st.error(f"Hiba történt az adatok mentése közben: {e}")
         return
 
     # Időbélyeges biztonsági mentés készítése minden mentés alkalmával
@@ -103,7 +103,7 @@ def save_data(data):
         with open(backup_file_path, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=4)
             
-        # Opcionális: Takarítsuk ki a túl régi mentéseket (pl. csak az utolsó 20-at őrizzük meg)
+        # Takarítsuk ki a túl régi mentéseket (csak az utolsó 20-at őrizzük meg)
         all_backups = sorted([os.path.join(BACKUP_DIR, f) for f in os.listdir(BACKUP_DIR) if f.endswith(".json")], key=os.path.getmtime)
         if len(all_backups) > 20:
             for old_file in all_backups[:-20]:
@@ -112,10 +112,5 @@ def save_data(data):
         pass
 
 # --- ALKALMAZÁS INICIALIZÁLÁSA ---
-# A Streamlit futás elején betöltjük a perzisztens adatokat
 if "data" not in st.session_state:
     st.session_state.data = load_data()
-
-# Példa arra, hogyan mentsd el az adatokat egy-egy módosítás után a felületen:
-# st.session_state.data["csapok"][0]["jelenlegi"] = "Új Csapnév"
-# save_data(st.session_state.data)
