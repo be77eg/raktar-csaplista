@@ -2,7 +2,7 @@ import os
 import streamlit as st
 from supabase import create_client, Client
 
-# Visszaállítottuk a kompatibilitási változókat az app.py importjaihoz
+# Kompatibilitási változók az app.py importjaihoz
 DATA_FILE = "data/csaplista.json"
 BACKUP_DIR = "data/backups"
 
@@ -32,27 +32,18 @@ DEFAULT_COLORS = {
     "Fake Your Pils": "#F1C40F",
 }
 
-def get_default_data():
+def get_empty_data():
+    """Tiszta 0-pont kezdőállapot mintaadatok nélkül."""
     return {
         "csapok": [
-            {"id": 1, "jelenlegi": "I do what I want", "datum": "2026-05-08", "kovetkezo": ["Fake Your Pils"]},
-            {"id": 2, "jelenlegi": "The Age of Heat Dome", "datum": "2026-02-13", "kovetkezo": ["The Age of Heat Dome", "The Age of Heat Dome"]},
-            {"id": 3, "jelenlegi": "Let's Jump", "datum": "2026-05-01", "kovetkezo": ["Let's Jump", "Let's Jump"]},
-            {"id": 4, "jelenlegi": "Trailer #50 Fifty Shades of Haze", "datum": "2026-01-23", "kovetkezo": ["Trailer #50 Fifty Shades of Haze", "Trailer #50 Fifty Shades of Haze"]},
-            {"id": 5, "jelenlegi": "Heart and Sour", "datum": "2026-05-01", "kovetkezo": ["Heart and Sour", "Heart and Sour", "Heart and Sour"]},
-            {"id": 6, "jelenlegi": "F**k You Please", "datum": "2026-02-15", "kovetkezo": ["F**k You Please"]},
-            {"id": 7, "jelenlegi": "Grain Cosmos", "datum": "2026-01-23", "kovetkezo": ["Grain Cosmos", "Grain Cosmos"]},
-            {"id": 8, "jelenlegi": "Trailer #49 Let's Go B(ea)ches", "datum": "2026-02-13", "kovetkezo": []},
-            {"id": 9, "jelenlegi": "Rosa", "datum": "2026-01-02", "kovetkezo": ["Rosa"]},
-            {"id": 10, "jelenlegi": "Dark Vanilla Sky", "datum": "2026-01-02", "kovetkezo": []},
-            {"id": 11, "jelenlegi": "Trailer #48 Universe of Senses", "datum": "2026-05-02", "kovetkezo": []},
-            {"id": 12, "jelenlegi": "Stróman", "datum": "2026-02-15", "kovetkezo": []},
+            {"id": i, "jelenlegi": "Üres csap", "datum": "", "kovetkezo": []}
+            for i in range(1, 13)
         ],
-        "kuka": ["I do what I want", "Stróman", "Exhausted Existence", "I do what I want", "Dark Vanilla Sky"],
-        "raktar": ["Fake Your Pils", "Grain Cosmos", "Dark Vanilla Sky", "Let's Jump"],
+        "kuka": [],
+        "raktar": [],
         "szinek": DEFAULT_COLORS,
-        "csapmosas": "2026-02-27",
-        "co2_csere": "2026-07-26",
+        "csapmosas": "",
+        "co2_csere": "",
         "history": [],
         "kuka_history": [],
     }
@@ -64,18 +55,17 @@ def load_data():
         
         if response.data and len(response.data) > 0:
             payload = response.data[0].get("payload")
-            if payload and isinstance(payload, dict) and "csapok" in payload:
+            # Ha van érvényes csaplista adat, azt adjuk vissza
+            if payload and isinstance(payload, dict) and "csapok" in payload and len(payload["csapok"]) > 0:
                 return payload, None
                 
-        # Ha az adatbázis üres, feltöltjük az alapértelmezett adatokkal
-        initial_data = get_default_data()
-        success, err = save_data(initial_data)
-        if not success:
-            st.error(f"⚠️ Nem sikerült elmenteni a kezdő adatokat a Supabase-be: {err}")
-        return initial_data, "Az adatbázis üres volt, inicializálva az alapértelmezett adatokkal."
+        # Ha az adatbázis üres vagy törölve volt, elmentjük a tiszta 0-pontot
+        empty_data = get_empty_data()
+        save_data(empty_data)
+        return empty_data, "Új, tiszta adatbázis inicializálva (0-pont)."
     except Exception as e:
         st.error(f"⚠️ Hiba a Supabase elérésekor: {e}")
-        return get_default_data(), f"Hiba történt az adatbázis elérésekor: {e}"
+        return get_empty_data(), f"Hiba történt az adatbázis elérésekor: {e}"
 
 def save_data(data):
     try:
@@ -83,4 +73,5 @@ def save_data(data):
         supabase.table("app_data").upsert({"id": 1, "payload": data}).execute()
         return True, None
     except Exception as e:
+        st.error(f"⚠️ Mentési hiba: {e}")
         return False, str(e)
